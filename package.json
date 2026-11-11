@@ -1,0 +1,19 @@
+{
+  "name": "kids-dictation-h5",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^4.7.76",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11"
+  }
+}

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>小朋友英语听写</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <h1>小朋友英语听写</h1>
+        <p>拍照/上传词表，自动听写与错词复习（记忆曲线）</p>
+      </header>
+
+      <section class="card">
+        <h2>1) 导入单词表</h2>
+        <div class="upload-grid">
+          <label class="upload-item">
+            <span>拍照或上传图片</span>
+            <input id="imageInput" type="file" accept="image/*" capture="environment" />
+          </label>
+          <label class="upload-item">
+            <span>上传文档（TXT / DOCX / PDF）</span>
+            <input id="fileInput" type="file" accept=".txt,.docx,.pdf,.doc" />
+          </label>
+        </div>
+        <p class="hint">
+          支持格式示例：<code>apple 苹果</code> 或 <code>apple - 苹果</code>，每行一个单词。
+        </p>
+        <pre id="importLog" class="log"></pre>
+      </section>
+
+      <section class="card">
+        <h2>2) 今日听写</h2>
+        <div class="toolbar">
+          <button id="startBtn" class="primary">开始/继续听写</button>
+          <button id="resetBtn">重置当前答案</button>
+          <button id="clearDataBtn" class="danger">清空学习记录</button>
+        </div>
+
+        <div id="dictationPanel" class="dictation hidden">
+          <div class="dictation-top">
+            <div class="progress" id="progressText"></div>
+            <div class="play-row">
+              <button id="playEnBtn" title="播放英语">🔊 English</button>
+              <button id="playZhBtn" title="播放中文">🔊 中文</button>
+            </div>
+          </div>
+
+          <p class="instruction">请在下方手写板写出听到的英文单词（不会弹出拼音键盘）</p>
+
+          <canvas id="handwritingCanvas" width="900" height="280" aria-label="手写输入板"></canvas>
+          <div class="canvas-actions">
+            <button id="clearCanvasBtn">清空手写板</button>
+            <button id="ocrCanvasBtn">识别手写为文本</button>
+          </div>
+
+          <label class="answer-label">
+            识别结果（可手动微调）：
+            <input
+              id="answerInput"
+              type="text"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              inputmode="none"
+              placeholder="手写识别后会自动填入"
+            />
+          </label>
+          <div class="toolbar">
+            <button id="submitBtn" class="primary">提交本题</button>
+          </div>
+          <p id="feedback" class="feedback"></p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3) 错词与记忆曲线</h2>
+        <div id="stats"></div>
+        <ul id="wrongList" class="wrong-list"></ul>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+ </html>
