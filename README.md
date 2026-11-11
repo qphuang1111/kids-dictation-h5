@@ -1,6 +1,6 @@
 # 小朋友英语听写 H5
 
-基于 `npm + Vite` 的 H5 页面版本，可在 iOS、macOS、Android 平板浏览器使用。
+基于 `pnpm + Vite` 的 H5 页面版本，可在 iOS、macOS、Android 平板浏览器使用。
 
 ## 功能
 
@@ -13,8 +13,8 @@
 ## 运行方式
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 默认启动后访问 `http://localhost:5173`。
@@ -22,8 +22,8 @@ npm run dev
 生产构建：
 
 ```bash
-npm run build
-npm run preview
+pnpm build
+pnpm preview
 ```
 
 ## 词表格式建议
