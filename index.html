@@ -25,9 +25,23 @@
           </label>
         </div>
         <p class="hint">
-          支持格式示例：<code>apple 苹果</code> 或 <code>apple - 苹果</code>，每行一个单词。
+          支持格式示例：<code>apple 苹果</code>、<code>apple - 苹果</code> 或 <code>1. apple n. 苹果</code>，每行一个单词。
         </p>
         <pre id="importLog" class="log"></pre>
+        <div id="reviewPanel" class="review hidden">
+          <p class="hint">请核对识别结果，每行一个：<code>英文 中文</code>，可直接修改、删除或补充。</p>
+          <textarea
+            id="reviewInput"
+            rows="10"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+          ></textarea>
+          <div class="toolbar">
+            <button id="confirmReviewBtn" class="primary">确认导入</button>
+            <button id="cancelReviewBtn">取消</button>
+          </div>
+        </div>
       </section>
 
       <section class="card">

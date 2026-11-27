@@ -20,6 +20,10 @@ const state = {
 const imageInput = document.getElementById("imageInput");
 const fileInput = document.getElementById("fileInput");
 const importLog = document.getElementById("importLog");
+const reviewPanel = document.getElementById("reviewPanel");
+const reviewInput = document.getElementById("reviewInput");
+const confirmReviewBtn = document.getElementById("confirmReviewBtn");
+const cancelReviewBtn = document.getElementById("cancelReviewBtn");
 const startBtn = document.getElementById("startBtn");
 const resetBtn = document.getElementById("resetBtn");
 const clearDataBtn = document.getElementById("clearDataBtn");
@@ -46,6 +50,8 @@ renderStats();
 function bindEvents() {
   imageInput.addEventListener("change", handleImageUpload);
   fileInput.addEventListener("change", handleFileUpload);
+  confirmReviewBtn.addEventListener("click", confirmReview);
+  cancelReviewBtn.addEventListener("click", hideReview);
   startBtn.addEventListener("click", startDictation);
   resetBtn.addEventListener("click", resetCurrentAnswer);
   clearDataBtn.addEventListener("click", clearAllData);
@@ -122,12 +128,10 @@ function getPoint(e) {
 async function handleImageUpload(event) {
   const file = event.target.files?.[0];
   if (!file) return;
-  log(`开始识别图片：${file.name}`);
+  log(`开始识别图片：${file.name}（首次识别需下载语言包，请稍候）`);
   try {
     const text = await extractTextFromImage(file);
-    const parsed = parseWordList(text);
-    mergeWords(parsed);
-    log(`图片识别完成，新增/更新 ${parsed.length} 个词。`);
+    showReview(parseWordList(text));
   } catch (error) {
     log(`图片识别失败：${error.message}`);
   } finally {
@@ -141,9 +145,7 @@ async function handleFileUpload(event) {
   log(`开始解析文件：${file.name}`);
   try {
     const text = await extractTextFromDocument(file);
-    const parsed = parseWordList(text);
-    mergeWords(parsed);
-    log(`文件解析完成，新增/更新 ${parsed.length} 个词。`);
+    showReview(parseWordList(text));
   } catch (error) {
     log(`文件解析失败：${error.message}`);
   } finally {
@@ -151,9 +153,54 @@ async function handleFileUpload(event) {
   }
 }
 
+// Reuse one worker so the language data is only loaded once per session
+let ocrWorkerPromise = null;
+
+function getOcrWorker() {
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = Tesseract.createWorker("eng+chi_sim").then(async (worker) => {
+      await worker.setParameters({ preserve_interword_spaces: "1" });
+      return worker;
+    });
+    ocrWorkerPromise.catch(() => {
+      ocrWorkerPromise = null;
+    });
+  }
+  return ocrWorkerPromise;
+}
+
 async function extractTextFromImage(file) {
-  const { data } = await Tesseract.recognize(file, "eng+chi_sim");
+  const image = await preprocessImage(file);
+  const worker = await getOcrWorker();
+  const { data } = await worker.recognize(image);
   return data.text || "";
+}
+
+// Fix photo orientation, limit size and convert to grayscale before OCR
+async function preprocessImage(file) {
+  const MAX_SIDE = 2400;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const out = document.createElement("canvas");
+    out.width = Math.round(img.naturalWidth * scale);
+    out.height = Math.round(img.naturalHeight * scale);
+    const octx = out.getContext("2d", { willReadFrequently: true });
+    octx.drawImage(img, 0, 0, out.width, out.height);
+    const pixels = octx.getImageData(0, 0, out.width, out.height);
+    const d = pixels.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      d[i] = d[i + 1] = d[i + 2] = gray;
+    }
+    octx.putImageData(pixels, 0, 0);
+    return out;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 async function extractTextFromDocument(file) {
@@ -186,28 +233,64 @@ async function extractTextFromDocument(file) {
 }
 
 function parseWordList(rawText) {
-  const lines = rawText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
   const list = [];
-  for (const line of lines) {
-    const normalized = line.replace(/[，；]/g, " ").replace(/\s{2,}/g, " ");
-    const match = normalized.match(/^([A-Za-z][A-Za-z' -]{0,40})\s*[-:：]?\s*(.+)$/);
-    if (!match) continue;
-    const en = sanitizeEnglish(match[1]);
-    const zh = match[2].trim();
-    if (!en) continue;
-    list.push(createWord(en, zh));
+  for (const line of rawText.split(/\r?\n/)) {
+    const word = parseWordLine(line);
+    if (word) list.push(createWord(word.en, word.zh));
   }
   return dedupeWords(list);
+}
+
+const CJK = /[㐀-鿿]/;
+// Part-of-speech markers like "n." "adj." that word lists put between the word and its meaning
+const POS_TOKEN = /\b(?:n|v|vt|vi|adj|adv|prep|pron|conj|num|art|int|interj|aux|abbr|pl|phr)\.(?=\s|$)/gi;
+// POS glued to the word by OCR ("runv."); "n." is excluded since many words end in n
+const GLUED_POS = /([a-z]{2})(?:v|vt|vi|adj|adv|prep|pron|conj)\.$/i;
+
+function parseWordLine(rawLine) {
+  const line = rawLine
+    .trim()
+    // OCR noise before the content, then list numbering such as "1." "(2)" "③"
+    .replace(/^[^A-Za-z0-9㐀-鿿(（]+/, "")
+    .replace(/^(?:[(（]?\d+[)）]?[.、,，:：)]?|[①-⑳])\s*/, "")
+    .replace(/[‘’]/g, "'")
+    .replace(/[，；;、]/g, "，");
+
+  const cjkAt = line.search(CJK);
+  const head = cjkAt === -1 ? line : line.slice(0, cjkAt);
+  const tail = cjkAt === -1 ? "" : line.slice(cjkAt);
+
+  // English part: phonetics and POS removed, then leading alphabetic tokens only,
+  // stopping at separators or OCR garbage like "3R" / "BF"
+  const tokens = head
+    .replace(/\/[^/]*\/|\[[^\]]*\]/g, " ")
+    .replace(POS_TOKEN, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const enTokens = [];
+  for (let token of tokens) {
+    token = token.replace(/[-:：=—]+$/, "").replace(GLUED_POS, "$1");
+    const isFirst = enTokens.length === 0;
+    if (!/^[A-Za-z][A-Za-z'-]*\.?$/.test(token)) break;
+    // Later tokens with caps or a trailing dot are misread POS markers / garbage ("Vv.", "BF")
+    if (!isFirst && (/[A-Z]{2}|\.$/.test(token) || /^[a-z]+[A-Z]/.test(token))) break;
+    enTokens.push(token.replace(/\.$/, ""));
+  }
+  const en = sanitizeEnglish(enTokens.join(" "));
+  if (!en) return null;
+
+  // Chinese meaning: keep only CJK characters and Chinese punctuation
+  const zh = tail
+    .replace(/[^㐀-鿿，（）()…]/g, "")
+    .replace(/^，+|，+$/g, "");
+  return { en, zh };
 }
 
 function sanitizeEnglish(text) {
   return text
     .toLowerCase()
     .replace(/[^a-z' -]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -231,11 +314,35 @@ function dedupeWords(words) {
   return [...map.values()];
 }
 
-function mergeWords(newWords) {
-  if (!newWords.length) {
-    log("未识别到可用的词条，请检查格式。");
+// OCR is never perfect, so let the user check and fix recognized words before saving
+function showReview(words) {
+  if (!words.length) {
+    log("未识别到可用的词条，请检查格式或拍得更清晰一些。");
     return;
   }
+  reviewInput.value = words.map((w) => (w.zh ? `${w.en} ${w.zh}` : w.en)).join("\n");
+  reviewPanel.classList.remove("hidden");
+  log(`识别到 ${words.length} 个词，请在下方核对、修改后点击「确认导入」。`);
+  reviewPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function confirmReview() {
+  const words = parseWordList(reviewInput.value);
+  if (!words.length) {
+    log("没有可导入的词条，请检查内容。");
+    return;
+  }
+  mergeWords(words);
+  hideReview();
+  log(`导入完成，新增/更新 ${words.length} 个词。`);
+}
+
+function hideReview() {
+  reviewInput.value = "";
+  reviewPanel.classList.add("hidden");
+}
+
+function mergeWords(newWords) {
 
   const byEn = new Map(state.words.map((w) => [w.en, w]));
   for (const item of newWords) {

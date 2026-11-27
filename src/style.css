@@ -84,6 +84,29 @@ body {
   white-space: pre-wrap;
 }
 
+.review {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.review.hidden {
+  display: none;
+}
+
+.review textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 16px;
+  line-height: 1.6;
+  font-family: inherit;
+  resize: vertical;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
